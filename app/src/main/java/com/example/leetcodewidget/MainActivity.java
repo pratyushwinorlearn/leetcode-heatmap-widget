@@ -141,7 +141,9 @@ public class MainActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> {
                     try {
-                        long today = System.currentTimeMillis() / 1000;
+                        java.util.TimeZone tz = java.util.TimeZone.getDefault();
+                        long now = System.currentTimeMillis();
+                        long today = (now + tz.getOffset(now)) / 1000;
 
                         for (int i = 0; i < 30; i++) {
                             long dayTimestamp = today - (i * 86400L);
