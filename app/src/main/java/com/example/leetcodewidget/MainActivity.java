@@ -1,9 +1,20 @@
 package com.example.leetcodewidget;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.work.Constraints;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.NetworkType;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -14,6 +25,7 @@ import org.json.JSONObject;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -22,7 +34,6 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
-
 
     LinearLayout container;
     EditText usernameInput;
@@ -42,36 +53,69 @@ public class MainActivity extends AppCompatActivity {
 
         usernameInput.setText(savedUsername);
 
-        saveButton.setOnClickListener(v -> {
+        // Schedule periodic WorkManager updates on first launch
+        scheduleWidgetUpdates();
 
+        // Prompt user to disable battery optimization (important for background updates)
+        requestBatteryOptimizationExemption();
+
+        saveButton.setOnClickListener(v -> {
             String username = usernameInput.getText().toString().trim();
 
-            if(!username.isEmpty()) {
-
+            if (!username.isEmpty()) {
                 prefs.edit().putString("username", username).apply();
 
-                container.removeAllViews();
+                // Immediately refresh widget with new username
+                AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
+                ComponentName componentName = new ComponentName(this, LeetCodeWidget.class);
+                int[] appWidgetIds = appWidgetManager.getAppWidgetIds(componentName);
+                for (int id : appWidgetIds) {
+                    LeetCodeWidget.updateAppWidget(this, appWidgetManager, id);
+                }
 
+                container.removeAllViews();
                 loadActivity(username);
             }
-
         });
 
         loadActivity(savedUsername);
     }
 
+    private void scheduleWidgetUpdates() {
+        Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build();
+
+        PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
+                WidgetUpdateWorker.class,
+                30, TimeUnit.MINUTES
+        )
+                .setConstraints(constraints)
+                .build();
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                "leetcode_widget_update",
+                ExistingPeriodicWorkPolicy.KEEP,
+                workRequest
+        );
+    }
+
+    private void requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        }
+    }
+
     private void loadActivity(String username) {
-
         new Thread(() -> {
-
             try {
-
                 OkHttpClient client = new OkHttpClient();
 
                 String graphqlQuery =
                         "{\"query\":\"query($username:String!){matchedUser(username:$username){submissionCalendar}}\",\"variables\":{\"username\":\""
-                                + username +
-                                "\"}}";
+                                + username + "\"}}";
 
                 RequestBody body = RequestBody.create(
                         MediaType.parse("application/json"),
@@ -96,47 +140,34 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject calendar = new JSONObject(calendarString);
 
                 runOnUiThread(() -> {
-
                     try {
-
                         long today = System.currentTimeMillis() / 1000;
 
-                        for(int i = 0; i < 30; i++) {
-
-                            long dayTimestamp = today - (i * 86400);
+                        for (int i = 0; i < 30; i++) {
+                            long dayTimestamp = today - (i * 86400L);
                             long key = (dayTimestamp / 86400) * 86400;
 
-                            int count = calendar.optInt(String.valueOf(key),0);
+                            int count = calendar.optInt(String.valueOf(key), 0);
 
                             Date date = new Date(key * 1000);
-
-                            SimpleDateFormat sdf =
-                                    new SimpleDateFormat("MMM dd", Locale.getDefault());
-
-                            String text =
-                                    sdf.format(date) + "  →  " + count + " problems";
+                            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+                            String text = sdf.format(date) + "  →  " + count + " problems";
 
                             TextView tv = new TextView(MainActivity.this);
-
                             tv.setText(text);
                             tv.setTextSize(18);
-                            tv.setPadding(0,15,0,15);
+                            tv.setPadding(0, 15, 0, 15);
 
                             container.addView(tv);
                         }
-
-                    } catch(Exception e) {
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
-
                 });
 
-            } catch(Exception e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
-
         }).start();
     }
-
-
 }

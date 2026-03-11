@@ -1,9 +1,3 @@
-/*
- * LeetCode Heatmap Widget
- * Author: Shekhar Pratyush
- * Year: 2026
- * Description: Android widget displaying LeetCode activity heatmap.
- */
 package com.example.leetcodewidget;
 
 import android.app.PendingIntent;
@@ -25,12 +19,10 @@ import okhttp3.Response;
 
 public class LeetCodeWidget extends AppWidgetProvider {
 
-
     static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
 
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.leet_code_widget);
 
-        // Make widget clickable → open MainActivity
         Intent intent = new Intent(context, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 context,
@@ -39,13 +31,8 @@ public class LeetCodeWidget extends AppWidgetProvider {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        // When any square is clicked, open the app
-        views.setOnClickPendingIntent(R.id.day1, pendingIntent);
-
         new Thread(() -> {
             try {
-
-                // Read saved username
                 SharedPreferences prefs = context.getSharedPreferences("leetcode_widget", Context.MODE_PRIVATE);
                 String username = prefs.getString("username", "shekharrrr");
 
@@ -53,8 +40,7 @@ public class LeetCodeWidget extends AppWidgetProvider {
 
                 String graphqlQuery =
                         "{\"query\":\"query($username:String!){matchedUser(username:$username){submissionCalendar}}\",\"variables\":{\"username\":\""
-                                + username +
-                                "\"}}";
+                                + username + "\"}}";
 
                 RequestBody body = RequestBody.create(
                         MediaType.parse("application/json"),
@@ -78,17 +64,16 @@ public class LeetCodeWidget extends AppWidgetProvider {
                 String calendarString = matchedUser.getString("submissionCalendar");
                 JSONObject calendar = new JSONObject(calendarString);
 
+                // FIX: use long arithmetic to avoid int overflow on timestamps
                 long today = System.currentTimeMillis() / 1000;
 
                 for (int i = 0; i < 30; i++) {
-
-                    long dayTimestamp = today - (i * 86400);
+                    long dayTimestamp = today - (i * 86400L); // L suffix prevents overflow
                     long key = (dayTimestamp / 86400) * 86400;
 
                     int count = calendar.optInt(String.valueOf(key), 0);
 
                     int drawable;
-
                     if (count == 0)
                         drawable = R.drawable.heatmap_empty;
                     else if (count == 1)
@@ -101,16 +86,17 @@ public class LeetCodeWidget extends AppWidgetProvider {
                     int viewId = context.getResources()
                             .getIdentifier("day" + (i + 1), "id", context.getPackageName());
 
-                    views.setInt(viewId, "setBackgroundResource", drawable);
-
-                    // Make every square clickable
-                    views.setOnClickPendingIntent(viewId, pendingIntent);
+                    if (viewId != 0) {
+                        views.setInt(viewId, "setBackgroundResource", drawable);
+                        views.setOnClickPendingIntent(viewId, pendingIntent);
+                    }
                 }
 
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
+            // Always update widget, even if fetch failed (shows last state)
             appWidgetManager.updateAppWidget(appWidgetId, views);
 
         }).start();
@@ -118,22 +104,15 @@ public class LeetCodeWidget extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
-
         for (int appWidgetId : appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId);
         }
     }
+
     @Override
-    public void onAppWidgetOptionsChanged(
-            Context context,
-            AppWidgetManager appWidgetManager,
-            int appWidgetId,
-            Bundle newOptions) {
-
+    public void onAppWidgetOptionsChanged(Context context, AppWidgetManager appWidgetManager,
+                                          int appWidgetId, Bundle newOptions) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions);
-
         updateAppWidget(context, appWidgetManager, appWidgetId);
     }
-
-
 }
