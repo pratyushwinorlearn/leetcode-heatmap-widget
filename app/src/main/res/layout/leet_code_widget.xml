@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GridLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:columnCount="10"
+    android:rowCount="3"
+    android:padding="6dp">
+
+        <!-- 30 heatmap squares -->
+
+        <ImageView android:id="@+id/day1" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day2" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day3" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day4" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day5" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day6" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day7" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day8" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day9" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day10" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+
+        <ImageView android:id="@+id/day11" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day12" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day13" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day14" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day15" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day16" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day17" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day18" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day19" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day20" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+
+        <ImageView android:id="@+id/day21" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day22" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day23" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day24" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day25" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day26" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day27" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day28" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day29" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+        <ImageView android:id="@+id/day30" android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/heatmap_square" android:layout_margin="2dp"/>
+
+</GridLayout>
