@@ -20,11 +20,19 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
@@ -53,19 +61,14 @@ public class MainActivity extends AppCompatActivity {
 
         usernameInput.setText(savedUsername);
 
-        // Schedule periodic WorkManager updates on first launch
         scheduleWidgetUpdates();
-
-        // Prompt user to disable battery optimization (important for background updates)
         requestBatteryOptimizationExemption();
 
         saveButton.setOnClickListener(v -> {
             String username = usernameInput.getText().toString().trim();
-
             if (!username.isEmpty()) {
                 prefs.edit().putString("username", username).apply();
 
-                // Immediately refresh widget with new username
                 AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
                 ComponentName componentName = new ComponentName(this, LeetCodeWidget.class);
                 int[] appWidgetIds = appWidgetManager.getAppWidgetIds(componentName);
@@ -87,9 +90,7 @@ public class MainActivity extends AppCompatActivity {
                 .build();
 
         PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
-                WidgetUpdateWorker.class,
-                30, TimeUnit.MINUTES
-        )
+                WidgetUpdateWorker.class, 30, TimeUnit.MINUTES)
                 .setConstraints(constraints)
                 .build();
 
@@ -113,13 +114,15 @@ public class MainActivity extends AppCompatActivity {
             try {
                 OkHttpClient client = new OkHttpClient();
 
+                // Combined query: full history from submissionCalendar + recent dedup from recentAcSubmissionList
                 String graphqlQuery =
-                        "{\"query\":\"query($username:String!){matchedUser(username:$username){submissionCalendar}}\",\"variables\":{\"username\":\""
-                                + username + "\"}}";
+                        "{\"query\":\"query($username:String!){" +
+                                "recentAcSubmissionList(username:$username,limit:20){titleSlug timestamp}" +
+                                " matchedUser(username:$username){userCalendar{submissionCalendar}}" +
+                                "}\",\"variables\":{\"username\":\"" + username + "\"}}";
 
                 RequestBody body = RequestBody.create(
-                        MediaType.parse("application/json"),
-                        graphqlQuery
+                        MediaType.parse("application/json"), graphqlQuery
                 );
 
                 Request request = new Request.Builder()
@@ -134,32 +137,69 @@ public class MainActivity extends AppCompatActivity {
 
                 JSONObject obj = new JSONObject(result);
                 JSONObject data = obj.getJSONObject("data");
-                JSONObject matchedUser = data.getJSONObject("matchedUser");
 
-                String calendarString = matchedUser.getString("submissionCalendar");
-                JSONObject calendar = new JSONObject(calendarString);
+                // --- Step 1: submissionCalendar as base (full year history, accepted only) ---
+                JSONObject userCalendar = data.getJSONObject("matchedUser").getJSONObject("userCalendar");
+                String calendarString = userCalendar.getString("submissionCalendar");
+                JSONObject submissionCalendar = new JSONObject(calendarString);
+
+                Map<Long, Integer> baseCountMap = new HashMap<>();
+                Iterator<String> keys = submissionCalendar.keys();
+                while (keys.hasNext()) {
+                    String k = keys.next();
+                    long ts = Long.parseLong(k);
+                    int count = submissionCalendar.getInt(k);
+                    baseCountMap.put(ts, count);
+                }
+
+                // --- Step 2: recentAcSubmissionList for accurate dedup of recent days ---
+                JSONArray submissions = data.getJSONArray("recentAcSubmissionList");
+
+                Map<Long, Set<String>> recentUniqueSlugs = new HashMap<>();
+                for (int j = 0; j < submissions.length(); j++) {
+                    JSONObject sub = submissions.getJSONObject(j);
+                    long ts = sub.getLong("timestamp");
+                    String slug = sub.getString("titleSlug");
+                    long dayKey = (ts / 86400) * 86400;
+
+                    if (!recentUniqueSlugs.containsKey(dayKey)) {
+                        recentUniqueSlugs.put(dayKey, new HashSet<>());
+                    }
+                    recentUniqueSlugs.get(dayKey).add(slug);
+                }
+
+                // --- Step 3: todayKey from local calendar date ---
+                Calendar cal = Calendar.getInstance();
+                cal.set(Calendar.HOUR_OF_DAY, 12);
+                cal.set(Calendar.MINUTE, 0);
+                cal.set(Calendar.SECOND, 0);
+                cal.set(Calendar.MILLISECOND, 0);
+                long todayKey = (cal.getTimeInMillis() / 1000L / 86400) * 86400;
 
                 runOnUiThread(() -> {
                     try {
-                        java.util.TimeZone tz = java.util.TimeZone.getDefault();
-                        long now = System.currentTimeMillis();
-                        long today = (now + tz.getOffset(now)) / 1000;
+                        SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+                        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 
                         for (int i = 0; i < 30; i++) {
-                            long dayTimestamp = today - (i * 86400L);
-                            long key = (dayTimestamp / 86400) * 86400;
+                            long key = todayKey - (i * 86400L);
 
-                            int count = calendar.optInt(String.valueOf(key), 0);
+                            int count;
+                            if (recentUniqueSlugs.containsKey(key)) {
+                                // Recent: accurate unique problem count
+                                count = recentUniqueSlugs.get(key).size();
+                            } else {
+                                // Older: fall back to submissionCalendar
+                                count = baseCountMap.containsKey(key) ? baseCountMap.get(key) : 0;
+                            }
 
-                            Date date = new Date(key * 1000);
-                            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+                            Date date = new Date(key * 1000L);
                             String text = sdf.format(date) + "  →  " + count + " problems";
 
                             TextView tv = new TextView(MainActivity.this);
                             tv.setText(text);
                             tv.setTextSize(18);
                             tv.setPadding(0, 15, 0, 15);
-
                             container.addView(tv);
                         }
                     } catch (Exception e) {

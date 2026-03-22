@@ -9,7 +9,15 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.RemoteViews;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -25,9 +33,7 @@ public class LeetCodeWidget extends AppWidgetProvider {
 
         Intent intent = new Intent(context, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(
-                context,
-                0,
-                intent,
+                context, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
@@ -38,13 +44,15 @@ public class LeetCodeWidget extends AppWidgetProvider {
 
                 OkHttpClient client = new OkHttpClient();
 
+                // Combined query: submissionCalendar (full history) + recentAcSubmissionList (dedup recent days)
                 String graphqlQuery =
-                        "{\"query\":\"query($username:String!){matchedUser(username:$username){submissionCalendar}}\",\"variables\":{\"username\":\""
-                                + username + "\"}}";
+                        "{\"query\":\"query($username:String!){" +
+                                "recentAcSubmissionList(username:$username,limit:20){titleSlug timestamp}" +
+                                " matchedUser(username:$username){userCalendar{submissionCalendar}}" +
+                                "}\",\"variables\":{\"username\":\"" + username + "\"}}";
 
                 RequestBody body = RequestBody.create(
-                        MediaType.parse("application/json"),
-                        graphqlQuery
+                        MediaType.parse("application/json"), graphqlQuery
                 );
 
                 Request request = new Request.Builder()
@@ -59,21 +67,62 @@ public class LeetCodeWidget extends AppWidgetProvider {
 
                 JSONObject obj = new JSONObject(result);
                 JSONObject data = obj.getJSONObject("data");
-                JSONObject matchedUser = data.getJSONObject("matchedUser");
 
-                String calendarString = matchedUser.getString("submissionCalendar");
-                JSONObject calendar = new JSONObject(calendarString);
+                // --- Step 1: Parse submissionCalendar as base (covers full history) ---
+                // userCalendar.submissionCalendar only counts accepted submissions
+                JSONObject userCalendar = data.getJSONObject("matchedUser").getJSONObject("userCalendar");
+                String calendarString = userCalendar.getString("submissionCalendar");
+                JSONObject submissionCalendar = new JSONObject(calendarString);
 
-                // FIX: use long arithmetic to avoid int overflow on timestamps
-                java.util.TimeZone tz = java.util.TimeZone.getDefault();
-                long now = System.currentTimeMillis();
-                long today = (now + tz.getOffset(now)) / 1000;
+                // Build base count map from submissionCalendar
+                // Keys in submissionCalendar are already UTC day-aligned timestamps
+                Map<Long, Integer> baseCountMap = new HashMap<>();
+                Iterator<String> keys = submissionCalendar.keys();
+                while (keys.hasNext()) {
+                    String k = keys.next();
+                    long ts = Long.parseLong(k);
+                    int count = submissionCalendar.getInt(k);
+                    baseCountMap.put(ts, count);
+                }
 
+                // --- Step 2: Build unique-problem map from recentAcSubmissionList ---
+                // This gives us accurate deduplication for recent days
+                JSONArray submissions = data.getJSONArray("recentAcSubmissionList");
+
+                Map<Long, Set<String>> recentUniqueSlugs = new HashMap<>();
+                for (int j = 0; j < submissions.length(); j++) {
+                    JSONObject sub = submissions.getJSONObject(j);
+                    long ts = sub.getLong("timestamp");
+                    String slug = sub.getString("titleSlug");
+
+                    long dayKey = (ts / 86400) * 86400;
+
+                    if (!recentUniqueSlugs.containsKey(dayKey)) {
+                        recentUniqueSlugs.put(dayKey, new HashSet<>());
+                    }
+                    recentUniqueSlugs.get(dayKey).add(slug);
+                }
+
+                // --- Step 3: Compute todayKey using local calendar date ---
+                Calendar cal = Calendar.getInstance();
+                cal.set(Calendar.HOUR_OF_DAY, 12);
+                cal.set(Calendar.MINUTE, 0);
+                cal.set(Calendar.SECOND, 0);
+                cal.set(Calendar.MILLISECOND, 0);
+                long todayKey = (cal.getTimeInMillis() / 1000L / 86400) * 86400;
+
+                // --- Step 4: Render 30-day heatmap ---
                 for (int i = 0; i < 30; i++) {
-                    long dayTimestamp = today - (i * 86400L); // L suffix prevents overflow
-                    long key = (dayTimestamp / 86400) * 86400;
+                    long key = todayKey - ((29 - i) * 86400L);
 
-                    int count = calendar.optInt(String.valueOf(key), 0);
+                    int count;
+                    if (recentUniqueSlugs.containsKey(key)) {
+                        // Recent day: use accurate unique-problem count
+                        count = recentUniqueSlugs.get(key).size();
+                    } else {
+                        // Older day: fall back to submissionCalendar (accepted submissions count)
+                        count = baseCountMap.containsKey(key) ? baseCountMap.get(key) : 0;
+                    }
 
                     int drawable;
                     if (count == 0)
@@ -98,7 +147,6 @@ public class LeetCodeWidget extends AppWidgetProvider {
                 e.printStackTrace();
             }
 
-            // Always update widget, even if fetch failed (shows last state)
             appWidgetManager.updateAppWidget(appWidgetId, views);
 
         }).start();
